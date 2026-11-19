@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HORIZON</title>
+<link rel="icon" href="../desktop/icon/horizon-256.png">
+<meta name="description" content="HORIZON: an atmospheric piano synth under a live aurora. Play it with a MIDI keyboard or the computer keyboard.">
+<meta name="theme-color" content="#05080F">
+<!-- HORIZON on its own: the piano synth from Mixtape 2 (Devices\horizon.js, its PAD from Devices\halo.js), with no desk around it, filling
+     the window (at the start, the whole screen). Started by the "HORIZON" desktop shortcut:
+       desktop\electron\electron.exe "C:\Mixtape\desktop" --horizon      (desktop\main.js: its own window, profile and taskbar button)
+     It plays from any MIDI keyboard (the Juno: its notes and its pedal) or the computer keyboard (KEYS), into the computer's sound
+     output. This page stands in for Mixtape 2 the way harp-tuner-phone\index.html does: Mixtape 2's own sound engine (engine.js) and
+     MIDI (midi.js), and here the few things a device asks of the desk; HORIZON's settings and its saved presets are kept with this page
+     (the program's own profile), apart from Mixtape 2's. -->
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:Bahnschrift,"Segoe UI",Arial,sans-serif;color:#F4F6FF}
+#stage{position:fixed;inset:0}
+#toast{position:fixed;left:50%;top:22px;transform:translateX(-50%);padding:10px 18px;border-radius:12px;background:rgba(6,8,20,.7);border:1px solid rgba(255,255,255,.15);
+  font-size:13px;letter-spacing:1px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:5;text-shadow:0 1px 2px #000}
+#toast.on{opacity:1}
+/* a browser starts sound only after a click: then this asks for one (the program starts it at once) */
+#start{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:6;background:rgba(0,0,0,.35);cursor:pointer}
+#start span{padding:16px 28px;border-radius:16px;background:rgba(6,8,20,.6);border:1px solid rgba(255,255,255,.2);font-size:16px;letter-spacing:4px;text-shadow:0 1px 2px #000}
+</style>
+</head>
+<body>
+<div id="stage"></div><div id="toast"></div><div id="start"><span>CLICK TO START HORIZON</span></div>
+<script src="engine.js"></script>
+<script src="midi.js"></script>
+<script>
+/* ---- what a device asks of Mixtape 2, here: files by their place in the Mixtape folder, settings kept with this page, no desk ---- */
+(()=>{const M2=window.M2,store={get(k){try{return JSON.parse(localStorage.getItem('horizon.'+k)||'null');}catch(e){return null;}},set(k,v){try{localStorage.setItem('horizon.'+k,JSON.stringify(v));}catch(e){}}};
+M2.store=store;
+M2.fileUrl=p=>new URL('../'+String(p||'').replace(/\\/g,'/').split('/').map(encodeURIComponent).join('/'),location.href).href;   /* this page is in mixtape2\ */
+M2.settings=Object.assign({},store.get('prefs')||{});
+M2.prefs={set(k,v){M2.settings[k]=v;store.set('prefs',M2.settings);}};
+M2.desk={get:()=>null,all:()=>[],distance:()=>0,changed(){}};
+/* on the web (horizon-web\, tools\horizon-web.ps1) there is no Mixtape folder: the files come over the internet beside the page, and a
+   folder's list from the files.json the script writes into it */
+if(!window.mixtapeFiles)window.mixtapeFiles={list:async d=>{const r=await fetch(M2.fileUrl(d+'/files.json'));if(!r.ok)throw new Error('no list: '+d);return r.json();},
+  read:async p=>{const r=await fetch(M2.fileUrl(p.replace(/#/g,'s')));return r.ok?new Uint8Array(await r.arrayBuffer()):null;}};   /* (a sharp's # is an s there: a # cannot be in a web address) */
+let tt=0;M2.ui={toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>e.classList.remove('on'),3500);}};
+})();
+</script>
+<script src="Devices/halo.js"></script>
+<script src="Devices/horizon.js"></script>
+<script>
+/* ---- HORIZON itself, filling the window, its sound to the computer's output ---- */
+(()=>{const M2=window.M2,def=M2.defs.get('horizon'),stage=document.getElementById('stage');
+if(!def){stage.textContent='HORIZON did not load (mixtape2\\Devices\\horizon.js)';return;}
+const settings=Object.assign(JSON.parse(JSON.stringify(def.settings)),M2.store.get('settings')||{});
+let saveT=0;const save=()=>{clearTimeout(saveT);saveT=setTimeout(()=>M2.store.set('settings',settings),300);};
+const host={uid:'horizon',def,el:stage,settings,engine:M2.engine,clock:M2.clock,files:window.mixtapeFiles,fill:true,get visible(){return !document.hidden;},
+  changed:save,send(){},resized(){},toast:t=>M2.ui.toast(t),fileUrl:M2.fileUrl,tool(){}};
+const inst=def.create(host);inst.node('out').connect(M2.engine.master);
+addEventListener('beforeunload',()=>{M2.store.set('settings',settings);});
+document.addEventListener('visibilitychange',()=>{if(inst.visible)inst.visible(!document.hidden);});
+/* sound waits for a click in a browser */
+const ctx=M2.engine.ctx,start=document.getElementById('start');
+const check=()=>{start.style.display=ctx.state==='running'?'none':'flex';};start.onclick=()=>ctx.resume().then(check);ctx.addEventListener('statechange',check);setTimeout(check,400);
+/* the program puts HORIZON over the whole screen as it opens (desktop\main.js); Esc or LEAVE FULL SCREEN leaves it */
+window.HORIZON={inst,full(){if(!document.fullscreenElement)inst.debugFull();}};
+})();
+</script>
+</body>
+</html>
